@@ -14,9 +14,12 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="fixed top-0 left-0 w-full bg-gray-800 text-white py-3 px-5 flex justify-between items-center shadow-md">
+    <nav className="fixed top-0 left-0 w-full bg-gray-700 text-white py-3 px-8 flex justify-between items-center shadow-md z-50">
       {/* 좌측 - 로고 */}
-      <div className="text-xl font-bold cursor-pointer" onClick={() => router.push("/")}>
+      <div 
+        className="text-2xl font-bold cursor-pointer hover:text-gray-300 transition"
+        onClick={() => router.push("/")}
+      >
         LataleGG
       </div>
 
@@ -24,17 +27,17 @@ export default function Navbar() {
       <input
         type="text"
         placeholder="검색어 입력..."
-        className="w-1/3 px-3 py-1 rounded border border-gray-500 text-black"
+        className="w-1/3 px-4 py-2 rounded-lg border border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 text-gray-800"
       />
 
       {/* 우측 - 로그인 / 로그아웃 버튼 */}
       <div>
         {user ? (
-          <button onClick={handleLogout} className="bg-red-500 px-4 py-2 rounded">
+          <button onClick={handleLogout} className="bg-gray-800 hover:bg-gray-700 px-5 py-2 rounded-lg shadow-md transition">
             로그아웃
           </button>
         ) : (
-          <button onClick={() => router.push("/login")} className="bg-blue-500 px-4 py-2 rounded">
+          <button onClick={() => router.push("/login")} className="bg-gray-800 hover:bg-gray-700 px-5 py-2 rounded-lg shadow-md transition">
             로그인
           </button>
         )}

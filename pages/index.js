@@ -2,7 +2,8 @@ import { useState } from "react";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import Content from "../components/Content";
-import RightPanel from "../components/RightPanel"; // 우측 패널 추가
+import RightPanel from "../components/RightPanel";
+import Board from "../components/Board"; //자유게시판
 
 export default function Home() {
   const [activePage, setActivePage] = useState("board");
@@ -13,7 +14,7 @@ export default function Home() {
       <div className="flex mt-12">
         <Sidebar setActivePage={setActivePage} />
         <div className="flex-grow">
-          <Content activePage={activePage} />
+          {activePage === "board" ? <Board /> : <Content activePage={activePage} />}
         </div>
         <RightPanel />
       </div>

@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, setDoc } from "firebase/firestore";
 
 export default function Nickname() {
   const router = useRouter();
   const [nickname, setNickname] = useState("");
   const [job, setJob] = useState("");
+  const [error, setError] = useState(""); // 중복 닉네임 오류 메시지
+  const nicknameInputRef = useRef(null); // 닉네임 입력 필드 포커스 설정
 
   const jobList = [
     "히어로", "검호", "세이버", "세피로트", "아크메이지", "파픈스타", "윈드스토커", "프라이쉬츠",
@@ -16,12 +18,36 @@ export default function Nickname() {
   ];
 
   const handleSaveNickname = async () => {
-    if (!nickname.trim()) return alert("닉네임을 입력해주세요.");
-    if (!job) return alert("직업을 선택해주세요.");
+    setError(""); // 기존 오류 메시지 초기화
+
+    if (!nickname.trim()) {
+      setError("닉네임을 입력해주세요.");
+      nicknameInputRef.current.focus(); // 닉네임 입력 필드로 포커스 이동
+      return;
+    }
+
+    if (!job) {
+      setError("직업을 선택해주세요.");
+      return;
+    }
 
     try {
+      // Firestore에서 동일한 닉네임이 있는지 확인
+      const q = query(collection(db, "users"), where("nickname", "==", nickname));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        setError("이미 존재하는 닉네임입니다.");
+        setNickname(""); // 입력값 초기화
+        nicknameInputRef.current.focus(); // 닉네임 입력 필드로 포커스 이동
+        return;
+      }
+
       const user = auth.currentUser;
-      if (!user) return alert("로그인 상태가 아닙니다.");
+      if (!user) {
+        setError("로그인 상태가 아닙니다.");
+        return;
+      }
 
       // Firestore에 닉네임과 직업 저장
       const userDocRef = doc(db, "users", user.uid);
@@ -31,6 +57,7 @@ export default function Nickname() {
       router.push("/");
     } catch (error) {
       console.error("닉네임 저장 오류:", error);
+      setError("닉네임 저장 중 오류가 발생했습니다.");
     }
   };
 
@@ -40,6 +67,7 @@ export default function Nickname() {
         <h2 className="text-2xl font-bold text-gray-800 mb-4">닉네임 및 직업 설정</h2>
 
         <input
+          ref={nicknameInputRef} // 닉네임 입력 필드 참조 설정
           type="text"
           placeholder="닉네임 입력"
           value={nickname}
@@ -59,6 +87,8 @@ export default function Nickname() {
             </option>
           ))}
         </select>
+
+        {error && <p className="text-red-500 text-sm mb-3">{error}</p>} {/* 오류 메시지 표시 */}
 
         <button
           onClick={handleSaveNickname}

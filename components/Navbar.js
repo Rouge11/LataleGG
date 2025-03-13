@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { auth, db } from "../lib/firebase";
-import { signOut, onAuthStateChanged } from "firebase/auth";
+import { signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/router";
 
@@ -28,7 +28,7 @@ export default function Navbar({ user }) {
 
   const handleLogout = async () => {
     await signOut(auth);
-    router.push("/");
+    router.push("/"); // ✅ 로그아웃 후 메인페이지로 이동 (로그인 페이지로 강제 이동 X)
   };
 
   return (

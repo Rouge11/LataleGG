@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../../lib/firebase";
-import { doc, getDoc, deleteDoc, collection, query, orderBy, onSnapshot, updateDoc } from "firebase/firestore";
+import { doc, getDoc, deleteDoc, collection, query, orderBy, onSnapshot, getDocs, updateDoc, writeBatch } from "firebase/firestore";
 import Comments from "../../components/Comments";
 
 export default function PostPage() {
@@ -43,13 +43,29 @@ export default function PostPage() {
     return unsubscribe;
   };
 
-  // ✅ 게시글 삭제 기능
+  // ✅ 게시글 삭제 기능 (댓글도 함께 삭제)
   const handleDeletePost = async () => {
     const confirmDelete = confirm("정말로 게시글을 삭제하시겠습니까?");
     if (!confirmDelete) return;
 
     try {
-      await deleteDoc(doc(db, "posts", id));
+      const batch = writeBatch(db); // 🔥 Firestore 배치 삭제 시작
+
+      // 🔹 1️⃣ 해당 게시글의 모든 댓글 가져오기
+      const commentsQuery = collection(db, "posts", id, "comments");
+      const commentsSnapshot = await getDocs(commentsQuery);
+
+      // 🔹 2️⃣ 댓글들 삭제 요청 추가
+      commentsSnapshot.forEach((doc) => {
+        batch.delete(doc.ref); // Firestore 댓글 삭제
+      });
+
+      // 🔹 3️⃣ 게시글 삭제 요청 추가
+      batch.delete(doc(db, "posts", id));
+
+      // 🔹 4️⃣ Firestore에서 배치 삭제 실행
+      await batch.commit();
+
       router.push("/"); // 삭제 후 메인 페이지로 이동
     } catch (error) {
       console.error("게시글 삭제 오류:", error);

@@ -1,66 +1,84 @@
 import { useState, useEffect } from "react";
 import { auth, db } from "../lib/firebase";
 import { useRouter } from "next/router";
-import { collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 
 export default function Board({ user }) {
   const router = useRouter();
   const [nickname, setNickname] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [posts, setPosts] = useState([]);
-  const [commentsCount, setCommentsCount] = useState({});
-  const [likes, setLikes] = useState({});
+  const [posts, setPosts] = useState(() => {
+    if (typeof window !== "undefined") {
+      return JSON.parse(localStorage.getItem("posts")) || [];
+    }
+    return [];
+  });
+  const [commentsCount, setCommentsCount] = useState(() => {
+    if (typeof window !== "undefined") {
+      return JSON.parse(localStorage.getItem("commentsCount")) || {};
+    }
+    return {};
+  });
+  const [likes, setLikes] = useState(() => {
+    if (typeof window !== "undefined") {
+      return JSON.parse(localStorage.getItem("likes")) || {};
+    }
+    return {};
+  });
   const [lastPostTime, setLastPostTime] = useState(null);
   const [isWriting, setIsWriting] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const postsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setPosts(postsData);
 
-      // 추천 상태 초기화
-      let newLikes = {};
-      postsData.forEach((post) => {
-        newLikes[post.id] = post.likes || [];
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const postsData = snapshot.docs.map((doc) => {
+        const post = doc.data();
+        return {
+          id: doc.id,
+          ...post,
+          createdAt: post.createdAt?.toDate ? post.createdAt.toDate() : new Date(post.createdAt),
+        };
       });
-      setLikes(newLikes);
+
+      // 🔥 Firestore에서 댓글 개수 & 추천 정보 동시 가져오기
+      let counts = {};
+      let likesData = {};
+      const fetchDetails = postsData.map(async (post) => {
+        const commentsRef = collection(db, "posts", post.id, "comments");
+        const querySnapshot = await getDocs(commentsRef);
+        counts[post.id] = querySnapshot.size;
+
+        likesData[post.id] = post.likes || [];
+      });
+
+      await Promise.all(fetchDetails);
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("posts", JSON.stringify(postsData));
+        localStorage.setItem("commentsCount", JSON.stringify(counts));
+        localStorage.setItem("likes", JSON.stringify(likesData));
+      }
+
+      setPosts(postsData);
+      setCommentsCount(counts);
+      setLikes(likesData);
     });
 
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (user) {
-      fetchNickname();
-    }
+    if (user) fetchNickname();
   }, [user]);
-
-  useEffect(() => {
-    if (posts.length > 0) {
-      fetchCommentsCount();
-    }
-  }, [posts]);
 
   const fetchNickname = async () => {
     if (user) {
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
-      if (userDoc.exists()) {
-        setNickname(userDoc.data().nickname || "익명");
-      }
+      if (userDoc.exists()) setNickname(userDoc.data().nickname || "익명");
     }
-  };
-
-  const fetchCommentsCount = async () => {
-    let counts = {};
-    for (let post of posts) {
-      const commentsRef = collection(db, "posts", post.id, "comments");
-      const querySnapshot = await getDocs(commentsRef);
-      counts[post.id] = querySnapshot.size;
-    }
-    setCommentsCount(counts);
   };
 
   const handlePostSubmit = async () => {
@@ -92,7 +110,6 @@ export default function Board({ user }) {
     }
   };
 
-  // ✅ 추천(좋아요) 기능
   const handleLikePost = async (postId) => {
     if (!user) {
       alert("로그인이 필요합니다.");
@@ -112,10 +129,14 @@ export default function Board({ user }) {
 
       await updateDoc(postRef, { likes: updatedLikes });
 
-      setLikes((prev) => ({
-        ...prev,
-        [postId]: updatedLikes,
-      }));
+      // 🔥 좋아요 즉시 반영
+      setLikes((prev) => {
+        const newLikes = { ...prev, [postId]: updatedLikes };
+        if (typeof window !== "undefined") {
+          localStorage.setItem("likes", JSON.stringify(newLikes));
+        }
+        return newLikes;
+      });
     }
   };
 
@@ -163,7 +184,9 @@ export default function Board({ user }) {
               <p className="text-sm text-gray-500">{post.nickname}</p>
             </div>
             <p className="text-gray-700">{post.content}</p>
-            <small className="text-gray-500">{new Date(post.createdAt.toDate()).toLocaleString()}</small>
+            <small className="text-gray-500">
+              {new Date(post.createdAt).toLocaleString()}
+            </small>
 
             <div className="flex items-center mt-2">
               <button

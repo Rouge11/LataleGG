@@ -1,73 +1,56 @@
+// pages/Board.js
 import { useState, useEffect } from "react";
-import { auth, db } from "../lib/firebase";
 import { useRouter } from "next/router";
-import { collection, query, orderBy, onSnapshot, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  doc,
+  getDoc,
+  updateDoc,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import Comments from "../components/Comments";
+import LoginModal from "../components/LoginModal";
+import PostModal from "../components/PostModal"; // ✅ 추가
 
 export default function Board({ user }) {
   const router = useRouter();
-  const [nickname, setNickname] = useState("");
+  const [nickname, setNickname] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("nickname") || "" : ""
+  );
+  const [posts, setPosts] = useState([]);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [isWriting, setIsWriting] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [posts, setPosts] = useState(() => {
-    if (typeof window !== "undefined") {
-      return JSON.parse(localStorage.getItem("posts")) || [];
-    }
-    return [];
-  });
-  const [commentsCount, setCommentsCount] = useState(() => {
-    if (typeof window !== "undefined") {
-      return JSON.parse(localStorage.getItem("commentsCount")) || {};
-    }
-    return {};
-  });
-  const [likes, setLikes] = useState(() => {
-    if (typeof window !== "undefined") {
-      return JSON.parse(localStorage.getItem("likes")) || {};
-    }
-    return {};
-  });
   const [lastPostTime, setLastPostTime] = useState(null);
-  const [isWriting, setIsWriting] = useState(false);
+  const [selectedPostId, setSelectedPostId] = useState(null); // ✅ 모달용 상태
 
   useEffect(() => {
+    fetchPostsWithCommentsCount();
+  }, []);
+
+  const fetchPostsWithCommentsCount = async () => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const updatedPosts = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+        createdAt: docSnap.data().createdAt?.toDate
+          ? docSnap.data().createdAt.toDate()
+          : new Date(docSnap.data().createdAt),
+        commentsCount: docSnap.data().commentsCount ?? 0,
+      }));
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const postsData = snapshot.docs.map((doc) => {
-        const post = doc.data();
-        return {
-          id: doc.id,
-          ...post,
-          createdAt: post.createdAt?.toDate ? post.createdAt.toDate() : new Date(post.createdAt),
-        };
-      });
-
-      // 🔥 Firestore에서 댓글 개수 & 추천 정보 동시 가져오기
-      let counts = {};
-      let likesData = {};
-      const fetchDetails = postsData.map(async (post) => {
-        const commentsRef = collection(db, "posts", post.id, "comments");
-        const querySnapshot = await getDocs(commentsRef);
-        counts[post.id] = querySnapshot.size;
-
-        likesData[post.id] = post.likes || [];
-      });
-
-      await Promise.all(fetchDetails);
-
-      if (typeof window !== "undefined") {
-        localStorage.setItem("posts", JSON.stringify(postsData));
-        localStorage.setItem("commentsCount", JSON.stringify(counts));
-        localStorage.setItem("likes", JSON.stringify(likesData));
-      }
-
-      setPosts(postsData);
-      setCommentsCount(counts);
-      setLikes(likesData);
+      setPosts(updatedPosts);
     });
 
     return () => unsubscribe();
-  }, []);
+  };
 
   useEffect(() => {
     if (user) fetchNickname();
@@ -77,17 +60,56 @@ export default function Board({ user }) {
     if (user) {
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
-      if (userDoc.exists()) setNickname(userDoc.data().nickname || "익명");
+      if (userDoc.exists()) {
+        const fetchedNickname = userDoc.data().nickname || "익명";
+        setNickname(fetchedNickname);
+      }
     }
   };
 
-  const handlePostSubmit = async () => {
-    if (!title.trim() || !content.trim()) return alert("제목과 내용을 입력하세요.");
-    if (!user) return router.push("/login");
+  const handleLikePost = async (postId) => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    setPosts((prevPosts) =>
+      prevPosts.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              likes: p.likes.includes(user.uid)
+                ? p.likes.filter((uid) => uid !== user.uid)
+                : [...p.likes, user.uid],
+            }
+          : p
+      )
+    );
+
+    const postRef = doc(db, "posts", postId);
+    const userLiked = posts.find((p) => p.id === postId)?.likes.includes(user.uid);
+
+    try {
+      const updatedLikes = userLiked
+        ? posts.find((p) => p.id === postId)?.likes.filter((uid) => uid !== user.uid)
+        : [...(posts.find((p) => p.id === postId)?.likes || []), user.uid];
+
+      await updateDoc(postRef, { likes: updatedLikes });
+    } catch (error) {
+      console.error("추천 기능 오류:", error);
+    }
+  };
+
+  const handleCreatePost = async () => {
+    if (!title.trim() || !content.trim()) {
+      alert("제목과 내용을 모두 입력해주세요.");
+      return;
+    }
 
     const now = new Date();
-    if (lastPostTime && now - lastPostTime < 60000) {
-      alert("1분에 한 개의 게시글만 작성할 수 있습니다.");
+    if (lastPostTime && now - lastPostTime < 3 * 60 * 1000) {
+      const remaining = Math.ceil((3 * 60 * 1000 - (now - lastPostTime)) / 1000);
+      alert(`게시글은 3분에 한 번만 작성할 수 있습니다. (${remaining}초 남음)`);
       return;
     }
 
@@ -95,10 +117,11 @@ export default function Board({ user }) {
       await addDoc(collection(db, "posts"), {
         title,
         content,
-        createdAt: new Date(),
         nickname,
         userId: user.uid,
+        createdAt: serverTimestamp(),
         likes: [],
+        commentsCount: 0,
       });
 
       setTitle("");
@@ -110,75 +133,65 @@ export default function Board({ user }) {
     }
   };
 
-  const handleLikePost = async (postId) => {
-    if (!user) {
-      alert("로그인이 필요합니다.");
-      return;
-    }
-
-    const postRef = doc(db, "posts", postId);
-    const postSnapshot = await getDoc(postRef);
-
-    if (postSnapshot.exists()) {
-      const postLikes = postSnapshot.data().likes || [];
-      const userLiked = postLikes.includes(user.uid);
-
-      const updatedLikes = userLiked
-        ? postLikes.filter((uid) => uid !== user.uid)
-        : [...postLikes, user.uid];
-
-      await updateDoc(postRef, { likes: updatedLikes });
-
-      // 🔥 좋아요 즉시 반영
-      setLikes((prev) => {
-        const newLikes = { ...prev, [postId]: updatedLikes };
-        if (typeof window !== "undefined") {
-          localStorage.setItem("likes", JSON.stringify(newLikes));
-        }
-        return newLikes;
-      });
-    }
-  };
-
   return (
     <div className="max-w-3xl mx-auto mt-12 p-6 bg-white shadow-md rounded-lg">
       <h2 className="text-xl font-bold mb-4">📌 자유게시판</h2>
 
-      {user && (
-        <div className="mb-4 p-4 bg-gray-100 rounded-lg">
-          {!isWriting ? (
-            <div
-              className="w-full p-2 text-gray-500 cursor-pointer border-b border-gray-300"
-              onClick={() => setIsWriting(true)}
-            >
-              새 글을 작성해주세요!
-            </div>
-          ) : (
-            <div className="flex flex-col space-y-2">
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="제목을 입력하세요..."
-                className="w-full p-2 border rounded-lg"
-              />
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="내용을 입력하세요..."
-                className="w-full p-2 border rounded-lg"
-              />
-              <button onClick={handlePostSubmit} className="bg-blue-500 text-white px-4 py-2 rounded-lg self-end">
-                게시하기
+      <div className="mb-4 p-4 bg-gray-100 rounded-lg">
+        {!isWriting ? (
+          <div
+            className="w-full p-2 text-gray-500 cursor-pointer border-b border-gray-300"
+            onClick={() => {
+              if (!user) {
+                setShowLoginModal(true);
+                return;
+              }
+              setIsWriting(true);
+            }}
+          >
+            새 글을 작성해주세요!
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="제목을 입력하세요"
+              className="w-full border p-2 rounded-lg"
+            />
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="내용을 입력하세요"
+              rows={4}
+              className="w-full border p-2 rounded-lg resize-none"
+            />
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => setIsWriting(false)}
+                className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400 transition"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleCreatePost}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+              >
+                게시
               </button>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       <div>
         {posts.map((post) => (
-          <div key={post.id} className="border-b py-4 cursor-pointer" onClick={() => router.push(`/post/${post.id}`)}>
+          <div
+            key={post.id}
+            className="border-b py-4 cursor-pointer"
+            onClick={() => setSelectedPostId(post.id)} // ✅ 모달로 전환
+          >
             <div className="flex justify-between">
               <h3 className="text-lg font-bold">{post.title}</h3>
               <p className="text-sm text-gray-500">{post.nickname}</p>
@@ -195,16 +208,23 @@ export default function Board({ user }) {
                   handleLikePost(post.id);
                 }}
                 className={`mr-2 ${
-                  likes[post.id]?.includes(user?.uid) ? "text-red-500" : "text-gray-500"
+                  post.likes?.includes(user?.uid) ? "text-red-500" : "text-gray-500"
                 } transition`}
               >
-                ❤️ {likes[post.id]?.length || 0}
+                ❤️ {post.likes?.length || 0}
               </button>
-              <button className="text-gray-500">💬 {commentsCount[post.id] || 0}</button>
+              <span className="ml-4 text-gray-500">💬 {post.commentsCount}</span>
             </div>
           </div>
         ))}
       </div>
+
+      {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
+
+      {/* ✅ 게시글 모달 */}
+      {selectedPostId && (
+        <PostModal postId={selectedPostId} onClose={() => setSelectedPostId(null)} />
+      )}
     </div>
   );
 }

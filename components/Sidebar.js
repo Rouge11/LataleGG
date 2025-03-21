@@ -5,19 +5,19 @@ export default function Sidebar({ setActivePage }) {
 
       {/* 메뉴 박스 추가 */}
       <div className="menu-box bg-gray-800 w-[220px] mx-auto p-4 rounded-lg border border-gray-600">
-        <button className="block w-[180px] mx-auto py-3 px-4 mb-3 bg-gray-700 hover:bg-gray-500 text-white font-semibold rounded-lg transition"
+        <button className="cursor-pointer block w-[180px] mx-auto py-3 px-4 mb-3 bg-gray-700 hover:bg-gray-500 text-white font-semibold rounded-lg transition"
           onClick={() => setActivePage("board")}>
           자유게시판
         </button>
-        <button className="block w-[180px] mx-auto py-3 px-4 mb-3 bg-gray-700 hover:bg-gray-500 text-white font-semibold rounded-lg transition"
+        <button className="cursor-pointer block w-[180px] mx-auto py-3 px-4 mb-3 bg-gray-700 hover:bg-gray-500 text-white font-semibold rounded-lg transition"
           onClick={() => setActivePage("status")}>
           상태창 인증
         </button>
-        <button className="block w-[180px] mx-auto py-3 px-4 mb-3 bg-gray-700 hover:bg-gray-500 text-white font-semibold rounded-lg transition"
+        <button className="cursor-pointer block w-[180px] mx-auto py-3 px-4 mb-3 bg-gray-700 hover:bg-gray-500 text-white font-semibold rounded-lg transition"
           onClick={() => setActivePage("trade")}>
           거래게시판
         </button>
-        <button className="block w-[180px] mx-auto py-3 px-4 bg-gray-700 hover:bg-gray-500 text-white font-semibold rounded-lg transition"
+        <button className="cursor-pointer block w-[180px] mx-auto py-3 px-4 bg-gray-700 hover:bg-gray-500 text-white font-semibold rounded-lg transition"
           onClick={() => setActivePage("enchant")}>
           인챈트 계산
         </button>

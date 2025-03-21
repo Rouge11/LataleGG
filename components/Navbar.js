@@ -6,29 +6,37 @@ import { useRouter } from "next/router";
 
 export default function Navbar({ user }) {
   const router = useRouter();
-  const [nickname, setNickname] = useState("");
+  const [nickname, setNickname] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("nickname") || "";
+    }
+    return "";
+  });
 
   useEffect(() => {
     if (user) {
-      fetchNickname(user.uid);
+      const fetchNickname = async () => {
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (userDoc.exists()) {
+            const fetchedNickname = userDoc.data().nickname || "익명";
+            setNickname(fetchedNickname);
+            localStorage.setItem("nickname", fetchedNickname); // 🔥 캐싱하여 즉시 로드
+          }
+        } catch (error) {
+          console.error("닉네임 가져오기 오류:", error);
+          setNickname("익명");
+        }
+      };
+
+      fetchNickname();
     }
   }, [user]);
 
-  // ✅ Firestore에서 닉네임 가져오기
-  const fetchNickname = async (uid) => {
-    try {
-      const userDoc = await getDoc(doc(db, "users", uid));
-      if (userDoc.exists()) {
-        setNickname(userDoc.data().nickname || "익명");
-      }
-    } catch (error) {
-      console.error("닉네임 가져오기 오류:", error);
-    }
-  };
-
   const handleLogout = async () => {
     await signOut(auth);
-    router.push("/"); // ✅ 로그아웃 후 메인페이지로 이동 (로그인 페이지로 강제 이동 X)
+    localStorage.removeItem("nickname"); // 🔥 로그아웃 시 캐시 삭제
+    router.push("/");
   };
 
   return (
@@ -46,13 +54,13 @@ export default function Navbar({ user }) {
       <div>
         {user ? (
           <>
-            <span className="mr-4">{nickname}님 환영합니다.</span>
-            <button onClick={handleLogout} className="bg-gray-800 hover:bg-gray-700 px-5 py-2 rounded-lg shadow-md transition">
+            <span className="mr-4">{nickname ? `${nickname}님 환영합니다.` : "닉네임 로딩 중..."}</span>
+            <button onClick={handleLogout} className="cursor-pointer bg-gray-800 hover:bg-gray-700 px-5 py-2 rounded-lg shadow-md transition">
               로그아웃
             </button>
           </>
         ) : (
-          <button onClick={() => router.push("/login")} className="bg-gray-800 hover:bg-gray-700 px-5 py-2 rounded-lg shadow-md transition">
+          <button onClick={() => router.push("/login")} className="cursor-pointer bg-gray-800 hover:bg-gray-700 px-5 py-2 rounded-lg shadow-md transition">
             로그인
           </button>
         )}

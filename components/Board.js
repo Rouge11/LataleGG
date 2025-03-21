@@ -1,4 +1,3 @@
-// pages/Board.js
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { db } from "../lib/firebase";
@@ -170,13 +169,13 @@ export default function Board({ user }) {
             <div className="flex justify-end space-x-2">
               <button
                 onClick={() => setIsWriting(false)}
-                className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400 transition"
+                className="cursor-pointer px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400 transition"
               >
                 취소
               </button>
               <button
                 onClick={handleCreatePost}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+                className="cursor-pointer px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
               >
                 게시
               </button>
@@ -190,13 +189,16 @@ export default function Board({ user }) {
           <div
             key={post.id}
             className="border-b py-4 cursor-pointer"
-            onClick={() => setSelectedPostId(post.id)} // ✅ 모달로 전환
+            onClick={() => setSelectedPostId(post.id)}
           >
             <div className="flex justify-between">
               <h3 className="text-lg font-bold">{post.title}</h3>
               <p className="text-sm text-gray-500">{post.nickname}</p>
             </div>
-            <p className="text-gray-700">{post.content}</p>
+            {/* ✅ 본문 3줄 초과 시 생략, 줄바꿈 유지 */}
+            <p className="text-gray-700 whitespace-pre-line line-clamp-3">
+              {post.content}
+            </p>
             <small className="text-gray-500">
               {new Date(post.createdAt).toLocaleString()}
             </small>
@@ -221,10 +223,13 @@ export default function Board({ user }) {
 
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
 
-      {/* ✅ 게시글 모달 */}
-      {selectedPostId && (
-        <PostModal postId={selectedPostId} onClose={() => setSelectedPostId(null)} />
-      )}
+      {/* ✅ 모달 항상 렌더링 + 애니메이션 위해 visible prop 전달 */}
+      <PostModal
+        postId={selectedPostId}
+        visible={!!selectedPostId}
+        onClose={() => setSelectedPostId(null)}
+      />
+
     </div>
   );
 }

@@ -16,7 +16,7 @@ import { db, auth } from "../lib/firebase";
 import CommentItem from "./CommentItem";
 import LoginModal from "./LoginModal";
 
-export default function Comments({ postId, initialComments = [], loading }) {
+export default function Comments({ postId, initialComments = [], loading, postAuthorId }) {
   const [comments, setComments] = useState(initialComments);
   const [comment, setComment] = useState("");
   const [nickname, setNickname] = useState("익명");
@@ -139,6 +139,7 @@ export default function Comments({ postId, initialComments = [], loading }) {
                     comment={parent}
                     postId={postId}
                     currentUser={user}
+                    postAuthorId={postAuthorId}
                   />
 
                   {childReplies.length > 0 && (
@@ -159,6 +160,7 @@ export default function Comments({ postId, initialComments = [], loading }) {
                         comment={reply}
                         postId={postId}
                         currentUser={user}
+                        postAuthorId={postAuthorId}
                       />
                     ))}
                 </div>

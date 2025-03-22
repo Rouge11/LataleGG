@@ -1,4 +1,3 @@
-// PostModal.js
 import { useEffect, useState, useRef } from "react";
 import { db, auth } from "../lib/firebase";
 import {
@@ -188,6 +187,7 @@ export default function PostModal({ postId, visible, onClose }) {
                   postId={postId}
                   initialComments={comments}
                   loading={commentsLoading}
+                  postAuthorId={post.userId} // ✅ 추가됨!
                 />
               </div>
             </motion.div>

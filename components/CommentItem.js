@@ -11,11 +11,13 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 
-export default function CommentItem({ comment, postId, currentUser }) {
+export default function CommentItem({ comment, postId, currentUser, postAuthorId }) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [nickname, setNickname] = useState("익명");
   const [lastReplyTime, setLastReplyTime] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editedText, setEditedText] = useState(comment.text || comment.content || "");
   const isReply = !!comment.parentId;
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export default function CommentItem({ comment, postId, currentUser }) {
 
       setReplyText("");
       setShowReplyForm(false);
-      setLastReplyTime(now); // ✅ 마지막 작성 시간 갱신
+      setLastReplyTime(now);
     } catch (error) {
       console.error("대댓글 작성 오류:", error);
     }
@@ -84,6 +86,21 @@ export default function CommentItem({ comment, postId, currentUser }) {
     }
   };
 
+  const handleEditSubmit = async () => {
+    if (!editedText.trim()) return;
+
+    try {
+      const commentRef = doc(db, "posts", postId, "comments", comment.id);
+      await updateDoc(commentRef, {
+        text: editedText,
+        edited: true,
+      });
+      setEditMode(false);
+    } catch (error) {
+      console.error("댓글 수정 오류:", error);
+    }
+  };
+
   return (
     <div
       className={`relative border border-gray-200 rounded-lg p-4 bg-gray-50 ${
@@ -91,23 +108,56 @@ export default function CommentItem({ comment, postId, currentUser }) {
       }`}
     >
       <div className="flex justify-between mb-1">
-        <p className="text-sm font-semibold text-gray-700">{comment.nickname}</p>
-        <p className="text-xs text-gray-400">
-          {comment.createdAt?.toDate &&
-            new Date(comment.createdAt.toDate()).toLocaleString()}
+        <p className="text-sm font-semibold text-gray-700">
+          {comment.nickname}
+          {comment.userId === postAuthorId && (
+            <span className="ml-1 text-blue-400 text-xs">(작성자)</span>
+          )}
         </p>
+        <div className="text-xs text-gray-400 flex gap-2 items-center">
+          <span>
+            {comment.createdAt?.toDate &&
+              new Date(comment.createdAt.toDate()).toLocaleString()}
+          </span>
+          {comment.edited && <span className="text-gray-400">(수정됨)</span>}
+        </div>
       </div>
 
-      <p
-        className={`whitespace-pre-line text-gray-800 text-sm ${
-          !isReply ? "cursor-pointer hover:underline" : ""
-        }`}
-        onClick={() => {
-          if (!isReply) setShowReplyForm((prev) => !prev);
-        }}
-      >
-        {comment.text || comment.content || ""}
-      </p>
+      {editMode ? (
+        <div className="space-y-1">
+          <textarea
+            value={editedText}
+            onChange={(e) => setEditedText(e.target.value)}
+            rows={2}
+            className="w-full border p-2 rounded-md resize-none text-sm"
+          />
+          <div className="flex justify-end space-x-2">
+            <button
+              onClick={() => setEditMode(false)}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >
+              취소
+            </button>
+            <button
+              onClick={handleEditSubmit}
+              className="text-xs text-blue-500 hover:text-blue-700"
+            >
+              저장
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p
+          className={`whitespace-pre-line text-gray-800 text-sm ${
+            !isReply ? "cursor-pointer hover:underline" : ""
+          }`}
+          onClick={() => {
+            if (!isReply) setShowReplyForm((prev) => !prev);
+          }}
+        >
+          {comment.text || comment.content || ""}
+        </p>
+      )}
 
       {!isReply && showReplyForm && (
         <div className="mt-2 ml-2">
@@ -130,13 +180,21 @@ export default function CommentItem({ comment, postId, currentUser }) {
         </div>
       )}
 
-      {currentUser?.uid === comment.userId && (
-        <button
-          onClick={handleDelete}
-          className="absolute top-2 right-2 text-xs text-red-400 hover:text-red-600 cursor-pointer"
-        >
-          삭제
-        </button>
+      {currentUser?.uid === comment.userId && !editMode && (
+        <div className="absolute top-2 right-2 flex gap-2 text-xs">
+          <button
+            onClick={() => setEditMode(true)}
+            className="text-blue-400 hover:text-blue-600 cursor-pointer"
+          >
+            수정
+          </button>
+          <button
+            onClick={handleDelete}
+            className="text-red-400 hover:text-red-600 cursor-pointer"
+          >
+            삭제
+          </button>
+        </div>
       )}
     </div>
   );

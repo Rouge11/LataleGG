@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
-import { auth, db } from "../lib/firebase";
+import { useEffect, useState } from "react";
 import {
-  collection,
   addDoc,
+  collection,
+  serverTimestamp,
   query,
   orderBy,
   onSnapshot,
@@ -12,126 +12,159 @@ import {
   updateDoc,
   increment,
 } from "firebase/firestore";
-import LoginModal from "./LoginModal";
+import { db, auth } from "../lib/firebase";
 import CommentItem from "./CommentItem";
+import LoginModal from "./LoginModal";
 
-export default function Comments({ postId, initialComments = [] }) {
-  const [user, setUser] = useState(auth.currentUser);
-  const [content, setContent] = useState("");
+export default function Comments({ postId, initialComments = [], loading }) {
   const [comments, setComments] = useState(initialComments);
-  const [nickname, setNickname] = useState("");
-  const [lastCommentTime, setLastCommentTime] = useState(null);
+  const [comment, setComment] = useState("");
+  const [nickname, setNickname] = useState("익명");
+  const [user, setUser] = useState(auth.currentUser);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [expandedReplies, setExpandedReplies] = useState({}); // ✅ 댓글별 대댓글 펼침 상태
 
   useEffect(() => {
     if (!postId) return;
-  
+
     const q = query(
       collection(db, "posts", postId, "comments"),
-      orderBy("createdAt", "desc")
+      orderBy("createdAt", "asc")
     );
-  
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setComments(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
-  
-    if (user) fetchNickname();
-  
+
     return () => unsubscribe();
-  }, [postId, user]);
-  
+  }, [postId]);
+
+  useEffect(() => {
+    if (user) fetchNickname();
+  }, [user]);
+
   const fetchNickname = async () => {
-    if (user) {
-      const userDocRef = doc(db, "users", user.uid);
-      const userDoc = await getDoc(userDocRef);
-      if (userDoc.exists()) {
-        setNickname(userDoc.data().nickname || "익명");
-      }
+    const userDocRef = doc(db, "users", user.uid);
+    const userDoc = await getDoc(userDocRef);
+    if (userDoc.exists()) {
+      const fetchedNickname = userDoc.data().nickname || "익명";
+      setNickname(fetchedNickname);
     }
   };
 
-  const handleCommentSubmit = async () => {
-    if (!content.trim()) return alert("댓글을 입력하세요.");
-    if (!user) return setShowLoginModal(true);
-
-    const now = new Date();
-    if (lastCommentTime && now - lastCommentTime < 60000) {
-      alert("1분에 한 개의 댓글만 작성할 수 있습니다.");
+  const handleSubmit = async () => {
+    if (!user) {
+      setShowLoginModal(true);
       return;
     }
 
-    // ✅ 즉시 입력창 비움 (지연 없이 깔끔)
-    setContent("");
+    if (!comment.trim()) return;
 
     try {
       await addDoc(collection(db, "posts", postId, "comments"), {
-        content,
-        createdAt: now,
+        text: comment,
         nickname,
         userId: user.uid,
+        createdAt: serverTimestamp(),
+        parentId: null,
       });
 
-      await updateDoc(doc(db, "posts", postId), {
+      const postRef = doc(db, "posts", postId);
+      await updateDoc(postRef, {
         commentsCount: increment(1),
       });
 
-      setLastCommentTime(now);
+      setComment("");
     } catch (error) {
       console.error("댓글 작성 오류:", error);
-    }
-  };
-
-  const handleDelete = async (commentId, commentUserId) => {
-    if (user?.uid !== commentUserId) return alert("본인 댓글만 삭제할 수 있습니다.");
-    if (!confirm("정말로 삭제하시겠습니까?")) return;
-
-    try {
-      await deleteDoc(doc(db, "posts", postId, "comments", commentId));
-      await updateDoc(doc(db, "posts", postId), {
-        commentsCount: increment(-1),
-      });
-    } catch (error) {
-      console.error("댓글 삭제 오류:", error);
     }
   };
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleCommentSubmit();
+      handleSubmit();
     }
   };
 
+  const toggleReplies = (parentId) => {
+    setExpandedReplies((prev) => ({
+      ...prev,
+      [parentId]: !prev[parentId],
+    }));
+  };
+
   return (
-    <div className="mt-4">
-      {/* 댓글 입력창 */}
-      <div className="flex items-start border rounded-lg p-2">
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="댓글 달기..."
-          rows={2}
-          onKeyDown={handleKeyDown}
-          className="w-full outline-none resize-none"
-        />
+    <div>
+      <textarea
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        onKeyDown={handleKeyDown}
+        rows={2}
+        placeholder="댓글을 입력하세요"
+        className="w-full border p-2 rounded-md resize-none"
+      />
+      <div className="text-right mt-1">
         <button
-          onClick={handleCommentSubmit}
-          className="cursor-pointer text-blue-500 hover:text-blue-700 transition px-4 whitespace-nowrap"
+          onClick={handleSubmit}
+          className="cursor-pointer px-4 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
           게시
         </button>
       </div>
 
-      {/* 댓글 목록 */}
-      <div className="mt-4 space-y-4">
-        {comments.map((comment) => (
-          <CommentItem
-            key={comment.id}
-            comment={comment}
-            onDelete={handleDelete}
-            isOwner={user?.uid === comment.userId}
-          />
-        ))}
+      <div className="mt-4">
+        {loading ? (
+          [...Array(3)].map((_, i) => (
+            <div key={i} className="animate-pulse space-y-2 mb-4">
+              <div className="h-3 bg-gray-300 rounded w-1/4" />
+              <div className="h-4 bg-gray-200 rounded w-full" />
+              <div className="h-4 bg-gray-100 rounded w-5/6" />
+            </div>
+          ))
+        ) : comments.length === 0 ? (
+          <p className="text-gray-400 text-center pt-4">댓글이 없습니다.</p>
+        ) : (
+          comments
+            .filter((c) => !c.parentId)
+            .map((parent) => {
+              const childReplies = comments.filter(
+                (child) => child.parentId === parent.id
+              );
+              const isExpanded = expandedReplies[parent.id];
+
+              return (
+                <div key={parent.id} className="mb-3 space-y-1">
+                  <CommentItem
+                    comment={parent}
+                    postId={postId}
+                    currentUser={user}
+                  />
+
+                  {childReplies.length > 0 && (
+                    <button
+                      onClick={() => toggleReplies(parent.id)}
+                      className="text-xs text-gray-400 hover:text-gray-600 ml-1 mb-1 cursor-pointer"
+                    >
+                      {isExpanded
+                        ? "답글 숨기기"
+                        : `답글 ${childReplies.length}개 보기`}
+                    </button>
+                  )}
+
+                  {isExpanded &&
+                    childReplies.map((reply) => (
+                      <CommentItem
+                        key={reply.id}
+                        comment={reply}
+                        postId={postId}
+                        currentUser={user}
+                      />
+                    ))}
+                </div>
+              );
+            })
+        )}
       </div>
 
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}

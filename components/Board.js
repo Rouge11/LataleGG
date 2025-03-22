@@ -28,6 +28,7 @@ export default function Board({ user }) {
   const [content, setContent] = useState("");
   const [lastPostTime, setLastPostTime] = useState(null);
   const [selectedPostId, setSelectedPostId] = useState(null); // ✅ 모달용 상태
+  const [loading, setLoading] = useState(true); // ✅ 로딩 상태 추가
 
   useEffect(() => {
     fetchPostsWithCommentsCount();
@@ -46,6 +47,7 @@ export default function Board({ user }) {
       }));
 
       setPosts(updatedPosts);
+      setLoading(false); // ✅ 로딩 끝
     });
 
     return () => unsubscribe();
@@ -136,10 +138,10 @@ export default function Board({ user }) {
     <div className="max-w-3xl mx-auto mt-12 p-6 bg-white shadow-md rounded-lg">
       <h2 className="text-xl font-bold mb-4">📌 자유게시판</h2>
 
-      <div className="mb-4 p-4 bg-gray-100 rounded-lg">
+      <div className="mb-6 bg-white border border-gray-200 rounded-xl shadow-sm p-6">
         {!isWriting ? (
           <div
-            className="w-full p-2 text-gray-500 cursor-pointer border-b border-gray-300"
+            className="w-full p-3 text-gray-400 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition border border-dashed border-gray-300 text-center"
             onClick={() => {
               if (!user) {
                 setShowLoginModal(true);
@@ -148,34 +150,34 @@ export default function Board({ user }) {
               setIsWriting(true);
             }}
           >
-            새 글을 작성해주세요!
+            ✍️ 새 게시글을 작성하려면 여기를 클릭하세요!
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-4">
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="제목을 입력하세요"
-              className="w-full border p-2 rounded-lg"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400"
             />
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="내용을 입력하세요"
-              rows={4}
-              className="w-full border p-2 rounded-lg resize-none"
+              rows={6}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none placeholder-gray-400"
             />
-            <div className="flex justify-end space-x-2">
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setIsWriting(false)}
-                className="cursor-pointer px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400 transition"
+                className="cursor-pointer px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
               >
                 취소
               </button>
               <button
                 onClick={handleCreatePost}
-                className="cursor-pointer px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+                className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
               >
                 게시
               </button>
@@ -185,51 +187,67 @@ export default function Board({ user }) {
       </div>
 
       <div>
-        {posts.map((post) => (
-          <div
-            key={post.id}
-            className="border-b py-4 cursor-pointer"
-            onClick={() => setSelectedPostId(post.id)}
-          >
-            <div className="flex justify-between">
-              <h3 className="text-lg font-bold">{post.title}</h3>
-              <p className="text-sm text-gray-500">{post.nickname}</p>
+        {loading ? (
+          [...Array(5)].map((_, i) => (
+            <div key={i} className="animate-pulse border-b py-4 space-y-2">
+              <div className="h-4 bg-gray-300 rounded w-1/3" />
+              <div className="h-4 bg-gray-200 rounded w-full" />
+              <div className="h-3 bg-gray-100 rounded w-1/2" />
             </div>
-            {/* ✅ 본문 3줄 초과 시 생략, 줄바꿈 유지 */}
-            <p className="text-gray-700 whitespace-pre-line line-clamp-3">
-              {post.content}
-            </p>
-            <small className="text-gray-500">
-              {new Date(post.createdAt).toLocaleString()}
-            </small>
+          ))
+        ) : posts.length === 0 ? (
+          <p className="text-gray-400 text-center py-8">게시글이 없습니다.</p>
+        ) : (
+          posts.map((post) => (
+            <div
+              key={post.id}
+              className="border-b py-4 cursor-pointer"
+              onClick={() => setSelectedPostId(post.id)}
+            >
+              <div className="flex justify-between">
+                <h3 className="text-lg font-bold">{post.title}</h3>
+                <p className="text-sm text-gray-500">{post.nickname}</p>
+              </div>
+              <p className="text-gray-700 whitespace-pre-line line-clamp-3">
+                {post.content}
+              </p>
+              <small className="text-gray-500">
+                {new Date(post.createdAt).toLocaleString()}
+              </small>
 
-            <div className="flex items-center mt-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleLikePost(post.id);
-                }}
-                className={`mr-2 ${
-                  post.likes?.includes(user?.uid) ? "text-red-500" : "text-gray-500"
-                } transition`}
-              >
-                ❤️ {post.likes?.length || 0}
-              </button>
-              <span className="ml-4 text-gray-500">💬 {post.commentsCount}</span>
+              <div className="flex items-center mt-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleLikePost(post.id);
+                  }}
+                  className={`mr-2 ${
+                    post.likes?.includes(user?.uid)
+                      ? "text-red-500"
+                      : "text-gray-500"
+                  } transition`}
+                >
+                  ❤️ {post.likes?.length || 0}
+                </button>
+                <span className="ml-4 text-gray-500">
+                  💬 {post.commentsCount}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
-      {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
+      {showLoginModal && (
+        <LoginModal onClose={() => setShowLoginModal(false)} />
+      )}
 
-      {/* ✅ 모달 항상 렌더링 + 애니메이션 위해 visible prop 전달 */}
+      {/* ✅ 게시글 모달 always render */}
       <PostModal
         postId={selectedPostId}
         visible={!!selectedPostId}
         onClose={() => setSelectedPostId(null)}
       />
-
     </div>
   );
 }

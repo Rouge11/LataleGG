@@ -107,22 +107,43 @@ export default function CommentItem({ comment, postId, currentUser, postAuthorId
         isReply ? "ml-6 mt-1" : "mb-1"
       }`}
     >
+      {/* 상단 정보와 버튼 분리 */}
       <div className="flex justify-between mb-1">
-        <p className="text-sm font-semibold text-gray-700">
-          {comment.nickname}
-          {comment.userId === postAuthorId && (
-            <span className="ml-1 text-blue-400 text-xs">(작성자)</span>
-          )}
-        </p>
-        <div className="text-xs text-gray-400 flex gap-2 items-center">
-          <span>
-            {comment.createdAt?.toDate &&
-              new Date(comment.createdAt.toDate()).toLocaleString()}
-          </span>
-          {comment.edited && <span className="text-gray-400">(수정됨)</span>}
+        <div>
+          <p className="text-sm font-semibold text-gray-700">
+            {comment.nickname}
+            {comment.userId === postAuthorId && (
+              <span className="ml-1 text-blue-400 text-xs">(작성자)</span>
+            )}
+          </p>
+          <div className="text-xs text-gray-400 flex gap-2 items-center">
+            <span>
+              {comment.createdAt?.toDate &&
+                new Date(comment.createdAt.toDate()).toLocaleString()}
+            </span>
+            {comment.edited && <span className="text-gray-400">(수정됨)</span>}
+          </div>
         </div>
+
+        {currentUser?.uid === comment.userId && !editMode && (
+          <div className="flex gap-2 text-xs">
+            <button
+              onClick={() => setEditMode(true)}
+              className="text-blue-400 hover:text-blue-600 cursor-pointer"
+            >
+              수정
+            </button>
+            <button
+              onClick={handleDelete}
+              className="text-red-400 hover:text-red-600 cursor-pointer"
+            >
+              삭제
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* 댓글 본문 */}
       {editMode ? (
         <div className="space-y-1">
           <textarea
@@ -159,6 +180,7 @@ export default function CommentItem({ comment, postId, currentUser, postAuthorId
         </p>
       )}
 
+      {/* 대댓글 입력 폼 */}
       {!isReply && showReplyForm && (
         <div className="mt-2 ml-2">
           <textarea
@@ -177,23 +199,6 @@ export default function CommentItem({ comment, postId, currentUser, postAuthorId
               게시
             </button>
           </div>
-        </div>
-      )}
-
-      {currentUser?.uid === comment.userId && !editMode && (
-        <div className="absolute top-2 right-2 flex gap-2 text-xs">
-          <button
-            onClick={() => setEditMode(true)}
-            className="text-blue-400 hover:text-blue-600 cursor-pointer"
-          >
-            수정
-          </button>
-          <button
-            onClick={handleDelete}
-            className="text-red-400 hover:text-red-600 cursor-pointer"
-          >
-            삭제
-          </button>
         </div>
       )}
     </div>

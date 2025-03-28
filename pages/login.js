@@ -27,9 +27,7 @@ export default function Login() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
-      {/* ✅ 로그인 박스 */}
       <div className="bg-gray-800 p-8 rounded-xl shadow-lg text-center border border-gray-700 w-[400px]">
-        {/* ✅ 로그인 폼 상단에 이미지 추가 */}
         <img
           src="/assets/gifs/텐구.gif"
           alt="텐구"

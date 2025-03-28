@@ -37,8 +37,6 @@ export default function Navbar({ user }) {
   const handleLogout = async () => {
     await signOut(auth);
     localStorage.removeItem("nickname");
-
-    // ✅ 로그아웃 후 페이지 새로고침
     location.reload();
   };
 

@@ -261,6 +261,22 @@ const ENCHANT_BOOSTS = {
   }
 };
 
+const PART_IMAGE_MAP = {
+  무기: "/ItemImage/무기.PNG",
+  정령석: "/ItemImage/정령석.PNG",
+  헬멧: "/ItemImage/헬멧.PNG",
+  플레이트: "/ItemImage/플레이트.PNG",
+  클립: "/ItemImage/클립.PNG",
+  글러브: "/ItemImage/글러브.PNG",
+  부츠: "/ItemImage/부츠.PNG",
+  망토: "/ItemImage/망토.PNG",
+  귀걸이: "/ItemImage/귀걸이.PNG",
+  반지: "/ItemImage/반지.PNG",
+  타투: "/ItemImage/타투.PNG",
+  안경: "/ItemImage/안경.PNG",
+  스타킹: "/ItemImage/스타킹.PNG",
+};
+
 export default function EnchantCalculator() {
   const [selectedPart, setSelectedPart] = useState(null);
   const [selectedOptions, setSelectedOptions] = useState([]);
@@ -269,6 +285,7 @@ export default function EnchantCalculator() {
   const [level, setLevel] = useState("노강");
   const [hasCalculated, setHasCalculated] = useState(false);
 
+  // 체크박스 토글
   const handleOptionToggle = (optionName) => {
     if (selectedOptions.includes(optionName)) {
       setSelectedOptions(selectedOptions.filter((opt) => opt !== optionName));
@@ -278,76 +295,114 @@ export default function EnchantCalculator() {
     }
   };
 
+  // 입력값 업데이트
   const handleInputChange = (optionName, value) => {
     setInputValues({ ...inputValues, [optionName]: value });
   };
 
+  // 계산 로직
   const calculate = () => {
+    if (!selectedPart) return;
+
     const options = ENCHANT_OPTIONS[selectedPart];
     const selected = options.filter((opt) => selectedOptions.includes(opt.name));
     const boosts = ENCHANT_BOOSTS[selectedPart] || {};
+
     const values = selected.map((opt) => {
-      const rawValue = parseFloat(inputValues[opt.name]);
+      // 유저 입력
+      const rawValue = parseFloat(inputValues[opt.name]) || 0;
       const baseMax = opt.max;
+
+      // 실제로 보정된 값
       let baseValue = rawValue;
-  
       let bonus = 0;
       let bonusMax = 0;
-  
+
+      // 강화 단계에 따른 +수치
       if (level !== "노강" && boosts[opt.name]) {
-        bonus = boosts[opt.name][level]?.value || 0;
-        bonusMax = boosts[opt.name][level]?.max || 0;
+        bonus = boosts[opt.name][level]?.value ?? 0;
+        bonusMax = boosts[opt.name][level]?.max ?? 0;
         baseValue += bonus;
       }
-  
+
       const correctedMax = baseMax + bonusMax;
-  
-      const percentage = rawValue && rawValue >= opt.min
+
+      // 기본 퍼센트 (범위가 없는 경우)
+      const percentage = rawValue >= opt.min
         ? Math.min(100, ((baseValue / correctedMax) * 100).toFixed(1))
         : 0;
-  
+
+      // 범위가 있는(최솟값 ~ 최댓값) 보정인지 확인
       const isRangeBoost =
         level !== "노강" &&
         boosts[opt.name] &&
         boosts[opt.name][level].value !== boosts[opt.name][level].max;
-  
+
+      // 범위 퍼센트 (최솟값 ~ 최댓값)
       const percentageMin = isRangeBoost
-        ? Math.min(100, ((rawValue + boosts[opt.name][level].value) / correctedMax * 100).toFixed(1))
+        ? Math.min(
+            100,
+            (
+              ((rawValue + boosts[opt.name][level].value) / correctedMax) *
+              100
+            ).toFixed(1)
+          )
         : percentage;
-  
+
       const percentageMax = isRangeBoost
-        ? Math.min(100, ((rawValue + boosts[opt.name][level].max) / correctedMax * 100).toFixed(1))
+        ? Math.min(
+            100,
+            (
+              ((rawValue + boosts[opt.name][level].max) / correctedMax) *
+              100
+            ).toFixed(1)
+          )
         : percentage;
-  
+
       return {
         ...opt,
         value: rawValue,
-        correctedValueMin: level === "노강" ? rawValue : rawValue + (boosts[opt.name]?.[level]?.value || 0),
-        correctedValueMax: level === "노강" ? rawValue : rawValue + (boosts[opt.name]?.[level]?.max || 0),
+        correctedValueMin:
+          level === "노강"
+            ? rawValue
+            : rawValue + (boosts[opt.name]?.[level]?.value || 0),
+        correctedValueMax:
+          level === "노강"
+            ? rawValue
+            : rawValue + (boosts[opt.name]?.[level]?.max || 0),
         correctedMax,
-        percentage,
-        percentageMin,
-        percentageMax,
+        // 게이지 표현용
         isRangeBoost,
+        percentage: parseFloat(percentage),
+        percentageMin: parseFloat(percentageMin),
+        percentageMax: parseFloat(percentageMax),
       };
     });
-  
+
+    // 평균 계산 (최솟값, 최댓값)
     let avgMin = 0, avgMax = 0;
     if (values.length > 0) {
-      avgMin = (values.reduce((acc, cur) => acc + parseFloat(cur.percentageMin), 0) / values.length).toFixed(1);
-      avgMax = (values.reduce((acc, cur) => acc + parseFloat(cur.percentageMax), 0) / values.length).toFixed(1);
+      avgMin =
+        values.reduce((acc, cur) => acc + parseFloat(cur.percentageMin), 0) /
+        values.length;
+      avgMax =
+        values.reduce((acc, cur) => acc + parseFloat(cur.percentageMax), 0) /
+        values.length;
     }
-  
-    setResult({ details: values, averageMin: avgMin, averageMax: avgMax });
-    setHasCalculated(true); // 🔥 여기가 핵심! 계산 후에 3강/풀강 버튼 활성화
+
+    setResult({
+      details: values,
+      averageMin: parseFloat(avgMin.toFixed(1)),
+      averageMax: parseFloat(avgMax.toFixed(1)),
+    });
+    setHasCalculated(true);
   };
-  
 
   return (
     <div className="max-w-3xl mx-auto mt-12 p-8 bg-white rounded-2xl shadow-lg border border-gray-200">
       <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">✨ 인챈트 계산기</h1>
 
-      {/* 부위 선택 */}
+      {/* 부위 선택 버튼들 */}
       <div className="flex flex-wrap justify-center gap-3 mb-6">
         {Object.keys(ENCHANT_OPTIONS).map((part) => (
           <button
@@ -357,6 +412,8 @@ export default function EnchantCalculator() {
               setSelectedOptions([]);
               setInputValues({});
               setResult(null);
+              setLevel("노강");
+              setHasCalculated(false);
             }}
             className={`cursor-pointer px-4 py-2 rounded-full font-medium border transition 
               ${
@@ -370,36 +427,16 @@ export default function EnchantCalculator() {
         ))}
       </div>
 
-      {/* 강화 레벨 선택 */}
-      <div className="flex justify-center gap-4 mb-4">
-        {["노강", "3강", "풀강"].map((lvl) => (
-          <button
-            key={lvl}
-            onClick={() => {
-              if (lvl === "노강" || hasCalculated) setLevel(lvl);
-            }}
-            className={`px-4 py-1 rounded-md font-medium border transition 
-              ${level === lvl
-                ? "bg-purple-700 text-white border-purple-700"
-                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-              }
-              ${lvl !== "노강" && !hasCalculated ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-            disabled={lvl !== "노강" && !hasCalculated}
-          >
-            {lvl}
-          </button>
-        ))}
-      </div>
-
-
-      {/* 옵션 입력 */}
+      {/* 옵션 선택 및 입력 */}
       {selectedPart && (
         <div className="space-y-4">
           {ENCHANT_OPTIONS[selectedPart].map((opt) => (
             <div
               key={opt.name}
               className={`flex items-center gap-3 border rounded-md px-4 py-2 shadow-sm ${
-                selectedOptions.includes(opt.name) ? "bg-blue-50 border-blue-300" : "bg-gray-50"
+                selectedOptions.includes(opt.name)
+                  ? "bg-blue-50 border-blue-300"
+                  : "bg-gray-50"
               }`}
             >
               <input
@@ -426,20 +463,54 @@ export default function EnchantCalculator() {
             </div>
           ))}
 
-          <div className="text-center mt-6">
-            <button
-              onClick={calculate}
-              className="cursor-pointer px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow"
-            >
-              계산
-            </button>
+          <div className="flex flex-col items-center justify-center mt-6 gap-4">
+            <div className="space-x-2">
+              {/* 계산 버튼 */}
+              <button
+                onClick={calculate}
+                className="cursor-pointer px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow"
+              >
+                계산
+              </button>
+
+              {/* 노강/3강/풀강 버튼 (계산 버튼 옆) */}
+              {["노강", "3강", "풀강"].map((lvl) => (
+                <button
+                  key={lvl}
+                  onClick={() => {
+                    if (lvl === "노강" || hasCalculated) setLevel(lvl);
+                  }}
+                  className={`px-4 py-2 rounded-md font-semibold border transition ${
+                    level === lvl
+                      ? "bg-purple-700 text-white border-purple-700"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                  } ${
+                    lvl !== "노강" && !hasCalculated
+                      ? "opacity-50 cursor-not-allowed"
+                      : "cursor-pointer"
+                  }`}
+                  disabled={lvl !== "노강" && !hasCalculated}
+                >
+                  {lvl}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
-      {/* 결과 출력 */}
+      {/* 결과 화면 */}
       {result && (
-        <div className="mt-8 bg-blue-50 border border-blue-200 p-6 rounded-lg shadow-inner">
+        <div className="mt-8 bg-blue-50 border border-blue-200 p-6 rounded-lg shadow-inner relative">
+          {/* 부위 이미지 */}
+          <div className="absolute top-2 right-2">
+            <img
+              src={PART_IMAGE_MAP[selectedPart] || "/ItemImage/default.png"}
+              alt={selectedPart}
+              className="w-14 h-auto object-contain"
+            />
+          </div>
+
           <h2 className="text-lg font-bold text-blue-700 mb-4">📊 {level} 기준 결과</h2>
           <ul className="space-y-4 text-gray-800">
             {result.details.map((opt) => (
@@ -455,10 +526,13 @@ export default function EnchantCalculator() {
                   <span className="font-semibold text-blue-600">
                     {opt.percentageMin !== opt.percentageMax
                       ? `${opt.percentageMin}% ~ ${opt.percentageMax}%`
-                      : `${opt.percentage}%`}
+                      : `${opt.percentageMax}%`}
                   </span>
                 </div>
-                <ProgressBar min={opt.percentageMin} max={opt.percentageMax} />
+                <ProgressBar
+                  percentageMin={opt.percentageMin}
+                  percentageMax={opt.percentageMax}
+                />
               </li>
             ))}
           </ul>

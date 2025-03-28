@@ -187,7 +187,7 @@ export default function PostModal({ postId, visible, onClose }) {
                   postId={postId}
                   initialComments={comments}
                   loading={commentsLoading}
-                  postAuthorId={post.userId} // ✅ 추가됨!
+                  postAuthorId={post.userId}
                 />
               </div>
             </motion.div>

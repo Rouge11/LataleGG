@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import Comments from "../components/Comments";
 import LoginModal from "../components/LoginModal";
-import PostModal from "../components/PostModal"; // ✅ 추가
+import PostModal from "../components/PostModal";
 
 export default function Board({ user }) {
   const router = useRouter();
@@ -27,8 +27,8 @@ export default function Board({ user }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [lastPostTime, setLastPostTime] = useState(null);
-  const [selectedPostId, setSelectedPostId] = useState(null); // ✅ 모달용 상태
-  const [loading, setLoading] = useState(true); // ✅ 로딩 상태 추가
+  const [selectedPostId, setSelectedPostId] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchPostsWithCommentsCount();
@@ -47,7 +47,7 @@ export default function Board({ user }) {
       }));
 
       setPosts(updatedPosts);
-      setLoading(false); // ✅ 로딩 끝
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -242,7 +242,7 @@ export default function Board({ user }) {
         <LoginModal onClose={() => setShowLoginModal(false)} />
       )}
 
-      {/* ✅ 게시글 모달 always render */}
+      {/* 게시글 모달 */}
       <PostModal
         postId={selectedPostId}
         visible={!!selectedPostId}

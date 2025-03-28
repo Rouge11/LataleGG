@@ -7,8 +7,8 @@ export default function Nickname() {
   const router = useRouter();
   const [nickname, setNickname] = useState("");
   const [job, setJob] = useState("");
-  const [error, setError] = useState(""); // 중복 닉네임 오류 메시지
-  const nicknameInputRef = useRef(null); // 닉네임 입력 필드 포커스 설정
+  const [error, setError] = useState(""); 
+  const nicknameInputRef = useRef(null); 
 
   const jobList = [
     "히어로", "검호", "세이버", "세피로트", "아크메이지", "파픈스타", "윈드스토커", "프라이쉬츠",
@@ -18,11 +18,11 @@ export default function Nickname() {
   ];
 
   const handleSaveNickname = async () => {
-    setError(""); // 기존 오류 메시지 초기화
+    setError(""); 
 
     if (!nickname.trim()) {
       setError("닉네임을 입력해주세요.");
-      nicknameInputRef.current.focus(); // 닉네임 입력 필드로 포커스 이동
+      nicknameInputRef.current.focus(); 
       return;
     }
 
@@ -38,8 +38,8 @@ export default function Nickname() {
 
       if (!querySnapshot.empty) {
         setError("이미 존재하는 닉네임입니다.");
-        setNickname(""); // 입력값 초기화
-        nicknameInputRef.current.focus(); // 닉네임 입력 필드로 포커스 이동
+        setNickname(""); 
+        nicknameInputRef.current.focus();
         return;
       }
 
@@ -49,11 +49,9 @@ export default function Nickname() {
         return;
       }
 
-      // Firestore에 닉네임과 직업 저장
       const userDocRef = doc(db, "users", user.uid);
       await setDoc(userDocRef, { nickname, job }, { merge: true });
 
-      // 닉네임 & 직업 저장 후 메인 페이지로 이동
       router.push("/");
     } catch (error) {
       console.error("닉네임 저장 오류:", error);
@@ -67,7 +65,7 @@ export default function Nickname() {
         <h2 className="text-2xl font-bold text-gray-800 mb-4">닉네임 및 직업 설정</h2>
 
         <input
-          ref={nicknameInputRef} // 닉네임 입력 필드 참조 설정
+          ref={nicknameInputRef} 
           type="text"
           placeholder="닉네임 입력"
           value={nickname}
@@ -88,7 +86,7 @@ export default function Nickname() {
           ))}
         </select>
 
-        {error && <p className="text-red-500 text-sm mb-3">{error}</p>} {/* 오류 메시지 표시 */}
+        {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
         <button
           onClick={handleSaveNickname}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import ProgressBar from "./ProgressBar"; // 게이지 바 컴포넌트
 
 const ENCHANT_OPTIONS = {
@@ -285,7 +285,8 @@ export default function EnchantCalculator() {
   const [level, setLevel] = useState("노강");
   const [hasCalculated, setHasCalculated] = useState(false);
 
-  // 체크박스 토글
+  const resultRef = useRef(null);
+  // 옵션 체크 토글
   const handleOptionToggle = (optionName) => {
     if (selectedOptions.includes(optionName)) {
       setSelectedOptions(selectedOptions.filter((opt) => opt !== optionName));
@@ -300,7 +301,7 @@ export default function EnchantCalculator() {
     setInputValues({ ...inputValues, [optionName]: value });
   };
 
-  // 계산 로직
+  // 계산
   const calculate = () => {
     if (!selectedPart) return;
 
@@ -309,16 +310,13 @@ export default function EnchantCalculator() {
     const boosts = ENCHANT_BOOSTS[selectedPart] || {};
 
     const values = selected.map((opt) => {
-      // 유저 입력
       const rawValue = parseFloat(inputValues[opt.name]) || 0;
       const baseMax = opt.max;
 
-      // 실제로 보정된 값
       let baseValue = rawValue;
       let bonus = 0;
       let bonusMax = 0;
 
-      // 강화 단계에 따른 +수치
       if (level !== "노강" && boosts[opt.name]) {
         bonus = boosts[opt.name][level]?.value ?? 0;
         bonusMax = boosts[opt.name][level]?.max ?? 0;
@@ -327,35 +325,27 @@ export default function EnchantCalculator() {
 
       const correctedMax = baseMax + bonusMax;
 
-      // 기본 퍼센트 (범위가 없는 경우)
+      // 기본 퍼센트
       const percentage = rawValue >= opt.min
         ? Math.min(100, ((baseValue / correctedMax) * 100).toFixed(1))
         : 0;
 
-      // 범위가 있는(최솟값 ~ 최댓값) 보정인지 확인
       const isRangeBoost =
         level !== "노강" &&
         boosts[opt.name] &&
         boosts[opt.name][level].value !== boosts[opt.name][level].max;
 
-      // 범위 퍼센트 (최솟값 ~ 최댓값)
       const percentageMin = isRangeBoost
         ? Math.min(
             100,
-            (
-              ((rawValue + boosts[opt.name][level].value) / correctedMax) *
-              100
-            ).toFixed(1)
+            (((rawValue) + boosts[opt.name][level].value) / correctedMax * 100).toFixed(1)
           )
         : percentage;
 
       const percentageMax = isRangeBoost
         ? Math.min(
             100,
-            (
-              ((rawValue + boosts[opt.name][level].max) / correctedMax) *
-              100
-            ).toFixed(1)
+            (((rawValue) + boosts[opt.name][level].max) / correctedMax * 100).toFixed(1)
           )
         : percentage;
 
@@ -371,7 +361,6 @@ export default function EnchantCalculator() {
             ? rawValue
             : rawValue + (boosts[opt.name]?.[level]?.max || 0),
         correctedMax,
-        // 게이지 표현용
         isRangeBoost,
         percentage: parseFloat(percentage),
         percentageMin: parseFloat(percentageMin),
@@ -379,14 +368,14 @@ export default function EnchantCalculator() {
       };
     });
 
-    // 평균 계산 (최솟값, 최댓값)
+    // 평균 (최솟값, 최댓값)
     let avgMin = 0, avgMax = 0;
     if (values.length > 0) {
       avgMin =
-        values.reduce((acc, cur) => acc + parseFloat(cur.percentageMin), 0) /
+        values.reduce((acc, cur) => acc + cur.percentageMin, 0) /
         values.length;
       avgMax =
-        values.reduce((acc, cur) => acc + parseFloat(cur.percentageMax), 0) /
+        values.reduce((acc, cur) => acc + cur.percentageMax, 0) /
         values.length;
     }
 
@@ -396,13 +385,21 @@ export default function EnchantCalculator() {
       averageMax: parseFloat(avgMax.toFixed(1)),
     });
     setHasCalculated(true);
+
+    setTimeout(() => {
+      if (resultRef.current) {
+        resultRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    }, 0);
   };
 
   return (
     <div className="max-w-3xl mx-auto mt-12 p-8 bg-white rounded-2xl shadow-lg border border-gray-200">
-      <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">✨ 인챈트 계산기</h1>
+      <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">
+        ✨ 인챈트 계산기
+      </h1>
 
-      {/* 부위 선택 버튼들 */}
+      {/* 부위 선택 버튼 */}
       <div className="flex flex-wrap justify-center gap-3 mb-6">
         {Object.keys(ENCHANT_OPTIONS).map((part) => (
           <button
@@ -427,9 +424,9 @@ export default function EnchantCalculator() {
         ))}
       </div>
 
-      {/* 옵션 선택 및 입력 */}
       {selectedPart && (
         <div className="space-y-4">
+          {/* 옵션 목록 */}
           {ENCHANT_OPTIONS[selectedPart].map((opt) => (
             <div
               key={opt.name}
@@ -463,6 +460,7 @@ export default function EnchantCalculator() {
             </div>
           ))}
 
+          {/* 계산 & 강화 버튼 */}
           <div className="flex flex-col items-center justify-center mt-6 gap-4">
             <div className="space-x-2">
               {/* 계산 버튼 */}
@@ -473,7 +471,7 @@ export default function EnchantCalculator() {
                 계산
               </button>
 
-              {/* 노강/3강/풀강 버튼 (계산 버튼 옆) */}
+              {/* 노강 / 3강 / 풀강 버튼 (계산 버튼 옆) */}
               {["노강", "3강", "풀강"].map((lvl) => (
                 <button
                   key={lvl}
@@ -499,9 +497,11 @@ export default function EnchantCalculator() {
         </div>
       )}
 
-      {/* 결과 화면 */}
+      {/* 결과 출력 */}
       {result && (
-        <div className="mt-8 bg-blue-50 border border-blue-200 p-6 rounded-lg shadow-inner relative">
+        <div 
+          ref={resultRef} 
+          className="mt-8 bg-blue-50 border border-blue-200 p-6 rounded-lg shadow-inner relative">
           {/* 부위 이미지 */}
           <div className="absolute top-2 right-2">
             <img
@@ -511,7 +511,9 @@ export default function EnchantCalculator() {
             />
           </div>
 
-          <h2 className="text-lg font-bold text-blue-700 mb-4">📊 {level} 기준 결과</h2>
+          <h2 className="text-lg font-bold text-blue-700 mb-4">
+            📊 {level} 기준 결과
+          </h2>
           <ul className="space-y-4 text-gray-800">
             {result.details.map((opt) => (
               <li key={opt.name}>
@@ -519,7 +521,8 @@ export default function EnchantCalculator() {
                   <span>
                     {opt.name} (
                       {opt.correctedValueMin.toLocaleString()}
-                      {opt.isRangeBoost && ` ~ ${opt.correctedValueMax.toLocaleString()}`} 
+                      {opt.isRangeBoost &&
+                        ` ~ ${opt.correctedValueMax.toLocaleString()}`} 
                       / 보정된 Max: {opt.correctedMax.toLocaleString()}
                     )
                   </span>
@@ -539,7 +542,9 @@ export default function EnchantCalculator() {
           <div className="mt-6 text-center">
             <p className="text-xl font-bold text-green-700">
               👉 평균 인챈트 수준: {result.averageMin}%
-              {result.averageMin !== result.averageMax ? ` ~ ${result.averageMax}%` : ""}
+              {result.averageMin !== result.averageMax
+                ? ` ~ ${result.averageMax}%`
+                : ""}
             </p>
           </div>
         </div>

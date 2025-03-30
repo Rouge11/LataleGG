@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import { db } from "../lib/firebase";
+import { db, storage } from "../lib/firebase";
 import {
   collection,
   query,
@@ -12,12 +12,76 @@ import {
   addDoc,
   serverTimestamp,
 } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import Comments from "../components/Comments";
 import LoginModal from "../components/LoginModal";
 import PostModal from "../components/PostModal";
 
+async function checkInappropriateContent(file) {
+  if (!file) return false;
+
+  // 1) 브라우저에서 파일 → Base64 변환
+  const base64Img = await toBase64(file);
+
+  // 2) Vision API 호출용 Payload
+  const requestBody = {
+    requests: [
+      {
+        image: { content: base64Img },
+        features: [{ type: "SAFE_SEARCH_DETECTION" }],
+      },
+    ],
+  };
+
+  // 3) 실제 API 키 (테스트 시 아래에 직접 key를 써둘 수 있지만, 배포 시엔 절대 노출 금지!)
+  const API_KEY = process.env.NEXT_PUBLIC_GCLOUD_API_KEY || "YOUR_GCLOUD_API_KEY";
+  const endpoint = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
+
+  // 4) Fetch로 Vision API 호출
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(requestBody),
+  });
+  const data = await res.json();
+
+  // 5) SafeSearch 결과 파싱
+  const safeSearch = data?.responses?.[0]?.safeSearchAnnotation;
+  if (!safeSearch) {
+    // 감지 정보 없으면 부적절 아니라고 가정
+    return false;
+  }
+
+  // ADULT / SPOOF / MEDICAL / VIOLENCE / RACY = "UNKNOWN", "VERY_UNLIKELY", "UNLIKELY", "POSSIBLE", "LIKELY", "VERY_LIKELY"
+  const isAdult =
+    ["POSSIBLE", "LIKELY", "VERY_LIKELY"].includes(safeSearch.adult);
+  const isViolent =
+    ["POSSIBLE", "LIKELY", "VERY_LIKELY"].includes(safeSearch.violence);
+  const isRacy =
+    ["POSSIBLE", "LIKELY", "VERY_LIKELY"].includes(safeSearch.racy);
+
+  // 예시로 성인(Adult), 폭력(Violence), 선정적(Racy) 중 하나라도 가능 이상이면 부적절하다고 처리
+  return isAdult || isViolent || isRacy;
+}
+
+// 파일 → Base64 변환
+function toBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      // "data:image/png;base64,iVBORw0K..." 형태이므로 앞부분(data:...) 제거
+      const base64 = result.replace(/^data:.*;base64,/, "");
+      resolve(base64);
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function Board({ user }) {
   const router = useRouter();
+
   const [nickname, setNickname] = useState(() =>
     typeof window !== "undefined" ? localStorage.getItem("nickname") || "" : ""
   );
@@ -88,11 +152,15 @@ export default function Board({ user }) {
     );
 
     const postRef = doc(db, "posts", postId);
-    const userLiked = posts.find((p) => p.id === postId)?.likes.includes(user.uid);
+    const userLiked = posts
+      .find((p) => p.id === postId)
+      ?.likes.includes(user.uid);
 
     try {
       const updatedLikes = userLiked
-        ? posts.find((p) => p.id === postId)?.likes.filter((uid) => uid !== user.uid)
+        ? posts
+            .find((p) => p.id === postId)
+            ?.likes.filter((uid) => uid !== user.uid)
         : [...(posts.find((p) => p.id === postId)?.likes || []), user.uid];
 
       await updateDoc(postRef, { likes: updatedLikes });
@@ -101,12 +169,14 @@ export default function Board({ user }) {
     }
   };
 
+  // 게시글 작성
   const handleCreatePost = async () => {
     if (!title.trim() || !content.trim()) {
       alert("제목과 내용을 모두 입력해주세요.");
       return;
     }
 
+    // 3분 쿨타임
     const now = new Date();
     if (lastPostTime && now - lastPostTime < 3 * 60 * 1000) {
       const remaining = Math.ceil((3 * 60 * 1000 - (now - lastPostTime)) / 1000);
@@ -115,16 +185,21 @@ export default function Board({ user }) {
     }
 
     try {
+
+      let finalNickname = nickname || "익명";
+
+      // 4) Firestore에 문서 추가
       await addDoc(collection(db, "posts"), {
         title,
         content,
-        nickname,
+        nickname: finalNickname,
         userId: user.uid,
         createdAt: serverTimestamp(),
         likes: [],
         commentsCount: 0,
       });
 
+      // 5) 폼 초기화
       setTitle("");
       setContent("");
       setIsWriting(false);
@@ -168,6 +243,7 @@ export default function Board({ user }) {
               rows={6}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none placeholder-gray-400"
             />
+
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setIsWriting(false)}
@@ -212,7 +288,7 @@ export default function Board({ user }) {
                 {post.content}
               </p>
               <small className="text-gray-500">
-                {new Date(post.createdAt).toLocaleString()}
+                {post.createdAt && new Date(post.createdAt).toLocaleString()}
               </small>
 
               <div className="flex items-center mt-2">

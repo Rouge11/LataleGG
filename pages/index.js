@@ -7,6 +7,7 @@ import RightPanel from "../components/RightPanel";
 import { collection, query, orderBy, onSnapshot, doc, getDoc, getDocs } from "firebase/firestore";
 import Comments from "../components/Comments";
 
+
 export default function Home() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -64,7 +65,7 @@ export default function Home() {
       <div className="flex mt-12">
         <Sidebar setActivePage={setActivePage} />
         <Content activePage={activePage} user={user} onPostClick={handlePostClick} />
-        <RightPanel />
+        <RightPanel setActivePage={setActivePage} />
       </div>
 
       {/* ✅ 게시글 상세 팝업 */}
